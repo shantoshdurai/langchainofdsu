@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # University Chatbot with LangChain and Ollama
 
 A powerful AI chatbot that can answer questions about your university using your own documents. Built with LangChain and powered by Ollama's LLM (llama3.1:8b).
@@ -63,3 +64,6 @@ You can customize the chatbot's behavior by modifying the `system_message` in `c
 ## License
 
 This project is open source and available under the MIT License.
+=======
+# langchainofdsu
+>>>>>>> 0b31692f9d810a19b6dedd192b2ab9d3654e2bd0
