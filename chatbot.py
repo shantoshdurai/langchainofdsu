@@ -238,6 +238,7 @@ def main():
     5. If a question is unclear, ask for clarification
     6. Always refer to the university as "DSU TRICHY"
     7. Dsu university is located in Trichy, Tamil Nadu, India
+    "you been created by a student in dsu university "santosh" he is a 2nd year student in dsu university . he is the one did everything for this chatbot.
     """
     
     # Initialize the chatbot
