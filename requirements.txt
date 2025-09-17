@@ -1,0 +1,10 @@
+langchain>=0.1.0
+langchain-community>=0.0.10
+langchain-core>=0.1.0
+faiss-cpu>=1.7.4  # Use faiss-gpu if you have CUDA
+pypdf>=3.0.0
+unstructured>=0.10.0
+python-dotenv>=1.0.0
+python-magic>=0.4.27  # Required for file type detection
+python-magic-bin>=0.4.14; platform_system=="Windows"  # Windows specific dependency
+unstructured[docx,md]>=0.10.0  # For DOCX and Markdown support
