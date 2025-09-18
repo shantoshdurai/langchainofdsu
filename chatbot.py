@@ -1,4 +1,3 @@
-
 import os
 from typing import List, Dict, Any, Optional
 from pathlib import Path
@@ -34,14 +33,7 @@ class Chatbot:
         system_message: str = None,
         memory_window: int = 5
     ):
-        """Initialize the chatbot with LLM and memory.
-        
-        Args:
-            model_name: Name of the Ollama model to use
-            temperature: Controls randomness in the model's responses
-            system_message: Initial system message to set the assistant's behavior
-            memory_window: Number of past messages to keep in memory
-        """
+        """Initialize the chatbot with LLM and memory."""
         self.llm = Ollama(
             model=model_name,
             temperature=temperature,
@@ -55,18 +47,11 @@ class Chatbot:
         self.vectorstore = None
         self.retriever = None
         self.conversation_chain = None
-        self.system_message = system_message or """
-        You are a helpful AI assistant for DSU university students and staff.
-        Answer questions based on the provided context and be as helpful as possible.
-        If you don't know the answer, say you don't know instead of making up an answer.
-        """
+        self.system_message = system_message or "You are a helpful AI assistant."
         self.chat_history = []
 
     def load_documents(self, document_paths: List[str]) -> None:
-        """Load documents from various file types and create vector store.
-        
-        Supported formats: .pdf, .txt, .md, .docx
-        """
+        """Load documents from various file types and create vector store."""
         if not document_paths:
             raise ValueError("No document paths provided")
             
@@ -114,24 +99,21 @@ class Chatbot:
             OllamaEmbeddings(model="llama3.1:8b")
         )
         self.retriever = self.vectorstore.as_retriever(
-            search_type="mmr",  # Maximum marginal relevance
-            search_kwargs={"k": 5}  # Number of documents to retrieve
+            search_type="mmr",
+            search_kwargs={"k": 5}
         )
 
     def setup_conversation_chain(self):
         """Set up the conversation chain with the LLM and retriever."""
         if not self.retriever:
-            # No retriever available (no docs). We'll use chat-only mode.
             self.conversation_chain = None
             return
-        # Define the prompt template
         qa_prompt = ChatPromptTemplate.from_messages([
             SystemMessage(content=self.system_message),
             MessagesPlaceholder(variable_name="chat_history"),
             HumanMessagePromptTemplate.from_template("{question}")
         ])
 
-        # Create the conversation chain
         self.conversation_chain = ConversationalRetrievalChain.from_llm(
             llm=self.llm,
             retriever=self.retriever,
@@ -142,14 +124,11 @@ class Chatbot:
         )
 
     def chat(self, question: str) -> Dict[str, Any]:
-        """Process a user question and return the assistant's response.
-        Fallback to chat-only mode if no retriever/chain is set.
-        """
+        """Process a user question and return the assistant's response."""
         if self.retriever and not self.conversation_chain:
             self.setup_conversation_chain()
 
         try:
-            # Add timestamp and user question to chat history
             self.chat_history.append({
                 "role": "user",
                 "content": question,
@@ -157,28 +136,24 @@ class Chatbot:
             })
 
             if self.conversation_chain:
-                # RAG path
                 response = self.conversation_chain.invoke({"question": question})
                 answer_text = response["answer"]
                 sources = [doc.metadata.get("source", "Unknown") for doc in response.get("source_documents", [])]
             else:
-                # Chat-only path (no RAG)
-                # Build a simple prompt with system message + brief conversation context
                 window = self.memory.k if hasattr(self.memory, 'k') else 5
-                recent = self.chat_history[-(2 * window):]  # approximate pairs
+                recent = self.chat_history[-(2 * window):]
                 convo_lines = []
                 for msg in recent:
                     prefix = "User" if msg["role"] == "user" else "Assistant"
                     convo_lines.append(f"{prefix}: {msg['content']}")
                 prompt = (
-                    f"{self.system_message.strip()}\n\n"  # system behavior
+                    f"{self.system_message.strip()}\n\n"
                     f"Conversation so far:\n" + "\n".join(convo_lines) + "\n\n" +
                     f"User: {question}\nAssistant:"
                 )
                 answer_text = self.llm.invoke(prompt)
                 sources = []
 
-            # Add assistant's response to chat history
             self.chat_history.append({
                 "role": "assistant",
                 "content": answer_text,
@@ -198,50 +173,49 @@ class Chatbot:
 
 
 def clear_screen():
-    """Clear the terminal screen."""
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def print_banner():
-    """Print the chatbot banner."""
     banner = """
     ╔══════════════════════════════════════╗
-    ║         DSU University Chatbot           ║
+    ║         DSU University Chatbot       ║
     ║  Powered by LangChain & Ollama LLM   ║
     ╚══════════════════════════════════════╝
     Type 'exit' to quit. Type 'clear' to clear the screen.
     """
     print(banner)
 
+def load_system_message_from_json(file_path: str) -> str:
+    """Load system instructions from a JSON file and build the system prompt."""
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        system_message = f"""
+        You are "{data.get('name', 'AI Assistant')}", an AI assistant for university students and staff.
+
+        University: {data.get('university', 'Unknown')}
+        Location: {data.get('location', 'Unknown')}
+        Creator: {data.get('creator', 'Unknown')} ({data.get('creator_role', '')})
+
+        Guidelines for responses:
+        """
+        for idx, rule in enumerate(data.get("instructions", []), start=1):
+            system_message += f"\n{idx}. {rule}"
+
+        return system_message.strip()
+    except Exception as e:
+        print(f"Error loading system message: {e}")
+        return "You are a helpful assistant."
+
 def main():
-    # Clear screen and show banner
     clear_screen()
     print_banner()
     
-    # System message that defines the chatbot's behavior
-    system_message = """
-    You are "DSU Chatbot", an AI assistant for university students and staff.
-    
-    Your purpose is to provide helpful and accurate information about the university, 
-    including but not limited to:
-    - Academic programs and courses
-    - University rules and regulations
-    - Important dates and deadlines
-    - Campus facilities and services
-    - Events and activities
-    - Administrative procedures
-    
-    Guidelines for responses:
-    1. Be polite, professional, and helpful at all times
-    2. Base your answers strictly on the provided context
-    3. If you don't know the answer, say so instead of making up information
-    4. For complex queries, break down the information into clear, organized points
-    5. If a question is unclear, ask for clarification
-    6. Always refer to the university as "DSU TRICHY"
-    7. Dsu university is located in Trichy, Tamil Nadu, India
-    "you been created by a student in dsu university "santosh" he is a 2nd year student in dsu university . he is the one did everything for this chatbot.
-    """
-    
-    # Initialize the chatbot
+    # Load system message from JSON
+    system_message_file = Path("system_message.json")
+    system_message = load_system_message_from_json(system_message_file)
+
     print("Initializing UniBot...")
     chatbot = Chatbot(
         model_name="llama3.1:8b",
@@ -250,14 +224,11 @@ def main():
         memory_window=10  
     )
     
-    # Load documents from the data directory
     data_dir = Path("data")
     if not data_dir.exists():
         data_dir.mkdir()
-        print(f"Created 'data' directory. Please add your documents (PDF, TXT, DOCX) there and restart.")
-        # Continue to chat-only mode even if no documents
+        print(f"Created 'data' directory. Please add your documents there and restart.")
     else:
-        # Find all supported documents in the data directory
         supported_extensions = ['.pdf', '.txt', '.md', '.docx', '.doc']
         document_paths = []
         for ext in supported_extensions:
@@ -265,7 +236,7 @@ def main():
         
         has_docs = len(document_paths) > 0
         if not has_docs:
-            print(f"No documents found in the 'data' directory. Running in chat-only mode (no RAG).")
+            print(f"No documents found in the 'data' directory. Running in chat-only mode.")
             print("Supported formats: " + ", ".join(supported_extensions))
 
     try:
@@ -277,7 +248,6 @@ def main():
         print("\nDSU Chatbot is ready! How can I help you today?")
         print("Type 'exit' to quit. Type 'clear' to clear the screen.\n")
         
-        # Main chat loop
         while True:
             try:
                 user_input = input("\nYou: ").strip()
@@ -294,14 +264,11 @@ def main():
                     print_banner()
                     continue
                 
-                # Get response from the chatbot
                 response = chatbot.chat(user_input)
                 
-                # Print the response
                 print("\n" + "="*80)
                 print(f"DSU Chatbot: {response['answer']}")
                 
-                # Print sources if available
                 if response.get('sources'):
                     print("\nSources:")
                     for i, source in enumerate(set(response['sources']), 1):
